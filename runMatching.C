@@ -137,7 +137,8 @@ int runMatching() {
   // Propagate MCH tracks to matching plane and convert parameters and
   // covariances matrix to MFT coordinate system
   matcher.initGlobalTracks();
-  matcher.exportTrainningDataCSV(10);
+  //matcher.exportTrainningDataCSV(14);
+  matcher.exportTrainningDataRoot(50);
 
   // Runs track matching event-by-event
   //matcher.runEventMatching();
