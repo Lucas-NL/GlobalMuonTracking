@@ -180,20 +180,24 @@ void MUONMatcher::loadMFTTracksOut()
             << " MFT Tracks. Label info:" << std::endl;
   mcLabels->print(std::cout);
   auto mftTrackID = 0;
+  auto nInvalidMFTLabels = 0;
   for (auto& track : mMFTTracks) {
     auto MFTlabel = mftTrackLabels.getLabels(mftTrackID);
-    auto event = MFTlabel[0].getEventID();
-    track.setParameters(track.getOutParam().getParameters());
-    track.setCovariances(track.getOutParam().getCovariances());
-    track.setZ(track.getOutParam().getZ());
-    track.propagateToZhelix(mMatchingPlaneZ, mField_z);
+	if (MFTlabel[0].isValid()) {    
+      auto event = MFTlabel[0].getEventID();
+      track.setParameters(track.getOutParam().getParameters());
+      track.setCovariances(track.getOutParam().getCovariances());
+      track.setZ(track.getOutParam().getZ());
+      track.propagateToZhelix(mMatchingPlaneZ, mField_z);
 
-    mSortedMFTTracks[event].push_back(track);
-    mftTrackLabelsIDx[event].push_back(mftTrackID);
-
+      mSortedMFTTracks[event].push_back(track);
+      mftTrackLabelsIDx[event].push_back(mftTrackID);
+    } else {
+      nInvalidMFTLabels++;
+    }
     mftTrackID++;
   }
-
+  std::cout << " Dropped " << nInvalidMFTLabels << " MFT Tracks with invalid labels (noise)." << std::endl;
   loadMFTClusters();
 }
 
@@ -354,6 +358,8 @@ void MUONMatcher::initGlobalTracks()
       helper.MatchingCutFunc = "_cutDistanceAndAngles";
     if (mCutFunc == &MUONMatcher::matchCut3SigmaXYAngles)
       helper.MatchingCutFunc = "_cutDistanceAndAngles3Sigma";
+    if (mCutFunc == &MUONMatcher::matchCutOptimalVarXYAngles)
+      helper.MatchingCutFunc = "_cutDistanceAndAnglesOptimal";
   }
 }
 
@@ -864,6 +870,27 @@ bool MUONMatcher::matchCut3SigmaXYAngles(const GlobalMuonTrack& mchTrack,
     3 * TMath::Sqrt(mchTrack.getSigma2X() + mchTrack.getSigma2Y());
   auto cutPhi = 3 * TMath::Sqrt(mchTrack.getSigma2Phi());
   auto cutTanl = 3 * TMath::Sqrt(mchTrack.getSigma2Tanl());
+  return (distance < cutDistance) and (dPhi < cutPhi) and (dTheta < cutTanl);
+}
+
+//_________________________________________________________________________________________________
+bool MUONMatcher::matchCutOptimalVarXYAngles(const GlobalMuonTrack& mchTrack,
+                                         const MFTTrack& mftTrack)
+{
+
+  if (mChargeCutEnabled && (mchTrack.getCharge() != mftTrack.getCharge()))
+    return false;
+
+  auto dx = mchTrack.getX() - mftTrack.getX();
+  auto dy = mchTrack.getY() - mftTrack.getY();
+  auto dPhi = mchTrack.getPhi() - mftTrack.getPhi();
+  auto dTheta =
+    TMath::Abs(EtaToTheta(mchTrack.getEta()) - EtaToTheta(mftTrack.getEta()));
+  auto distance = TMath::Sqrt(dx * dx + dy * dy);
+  auto cutDistance =
+    3 * 1.3 * TMath::Sqrt(mchTrack.getSigma2X() + mchTrack.getSigma2Y());
+  auto cutPhi = 3 * 1.15 * TMath::Sqrt(mchTrack.getSigma2Phi());
+  auto cutTanl = 3 * 1.22 * TMath::Sqrt(mchTrack.getSigma2Tanl());
   return (distance < cutDistance) and (dPhi < cutPhi) and (dTheta < cutTanl);
 }
 
@@ -1806,7 +1833,8 @@ void MUONMatcher::exportTrainingDataRoot(int nMCHTracks)
         auto mftTrackID = 0;
         for (auto mftTrack : mSortedMFTTracks[event]) {
           auto MFTlabel = mftTrackLabels.getLabels(mftTrackLabelsIDx[event][mftTrackID]);
-          if (matchingCut(mchTrack, mftTrack)) {
+          Truth = (int)(MFTlabel[0].getTrackID() == MCHlabel[0].getTrackID());
+          if (Truth || matchingCut(mchTrack, mftTrack)) {
 
             MFT_X = mftTrack.getX();
             MFT_Y = mftTrack.getY();
@@ -1848,7 +1876,7 @@ void MUONMatcher::exportTrainingDataRoot(int nMCHTracks)
             MCH_Cov24 = mchTrack.getCovariances()(2, 4);
             MCH_Cov34 = mchTrack.getCovariances()(3, 4);
             MCH_Cov44 = mchTrack.getCovariances()(4, 4);
-            Truth = (int)(MFTlabel[0].getTrackID() == MCHlabel[0].getTrackID());
+            
             Truth ? nCorrectPairs++ : nFakesPairs++;
             pairID++;
             matchTree->Fill();

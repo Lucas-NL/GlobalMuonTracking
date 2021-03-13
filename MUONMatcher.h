@@ -199,7 +199,7 @@ class MUONMatcher
   void exportTrainingDataRoot(int nMCHTracks = -1);
 
   // Matching cuts
-  void disableChargeMatchCut() { mChargeCutEnabled = false; }
+  void enableChargeMatchCut() { mChargeCutEnabled = true; }
   bool matchingCut(const GlobalMuonTrack&,
                    const MFTTrack&); // Calls configured cut function
 
@@ -267,6 +267,7 @@ class MUONMatcher
   bool matchCutDistanceAndAngles(const GlobalMuonTrack&, const MFTTrack&);
   bool matchCutDistanceSigma(const GlobalMuonTrack&, const MFTTrack&);
   bool matchCut3SigmaXYAngles(const GlobalMuonTrack&, const MFTTrack&);
+  bool matchCutOptimalVarXYAngles(const GlobalMuonTrack&, const MFTTrack&);
   void setCutParam(int index, double param)
   {
     if (index > ((int)mCutParams.size() - 1))
@@ -331,7 +332,7 @@ class MUONMatcher
   bool mVerbose = false;
   TGeoManager* mGeoManager;
   bool mMatchSaveAll = false;
-  bool mChargeCutEnabled = true;
+  bool mChargeCutEnabled = false;
 
   // TMVA interface
   std::string mTMVAWeightFileName;

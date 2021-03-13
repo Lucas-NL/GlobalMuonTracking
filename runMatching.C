@@ -116,10 +116,15 @@ void loadAndSetMatchingConfig()
       std::cout << " Setting " << matching_cutfcn << std::endl;
       matcher.setCutFunction(&MUONMatcher::matchCut3SigmaXYAngles);
     }
+    if (matching_cutfcn.find("cutDistanceAndAnglesOptimal_") <
+        matching_cutfcn.length()) {
+      std::cout << " Setting " << matching_cutfcn << std::endl;
+      matcher.setCutFunction(&MUONMatcher::matchCutOptimalVarXYAngles);
+    }
   }
 
-  if (gSystem->Getenv("DISABLECHARGEMATCHCUT")) {
-    matcher.disableChargeMatchCut();
+  if (gSystem->Getenv("ENABLECHARGEMATCHCUT")) {
+    matcher.enableChargeMatchCut();
   }
 
   if (gSystem->Getenv("MATCHING_CUTPARAM0")) {
