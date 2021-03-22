@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MATCHINGRESULTS="GlobalMuonTracks.root matching.log MatchingPlane_eV*.png ML_Evaluation*.root"
+MATCHINGRESULTS="GlobalMuonTracks.root matching.log MatchingPlane_eV*.png ML_Evaluation*.root ML_Analysis*.root"
 CHECKRESULTS="GlobalMuonChecks.root checks.log"
 
 Usage()
@@ -228,22 +228,22 @@ generateMFTTracks()
 
 runMatching()
 {
-
+    echo " Inside runMatching, yaay ..."
   if ! [ -f "${OUTDIR}/tempMCHTracks.root" ]; then
-    echo " Nothing to Match... MCH Tracks not found on `realpath ${OUTDIR}/tempMCHTracks.root` ..."
+    echo " Nothing to Match... MCH Tracks not found on `realpath ${OUTDIR}` ..."
     EXITERROR="1"
   fi
 
   if ! [ -f "${OUTDIR}/mfttracks.root" ]; then
-    echo " Nothing to Match... MFT Tracks not found on `realpath ${OUTDIR}/mfttracks.root` ..."
+    echo " Nothing to Match... MFT Tracks not found on `realpath ${OUTDIR}` ..."
     EXITERROR="1"
   fi
 
   if ! [ -z ${EXITERROR+x} ]; then exit ; fi
 
-  if [ -d "${OUTDIR}" ]; then
+  if [ -d "`realpath ${OUTDIR}`" ]; then
     if ! [ -z ${UPDATECODE+x} ]; then updatecode ; fi
-
+    echo " Inside runMatching, HURaay ..."
     pushd ${OUTDIR}
     echo "Matching MCH & MFT Tracks on `pwd` ..."
     ## MFT MCH track matching & global muon track fitting:
@@ -311,7 +311,7 @@ trainML()
     if ! [ -z ${UPDATECODE+x} ]; then updatecode ; fi
     pushd ${OUTDIR}
    	alienv setenv ${O2ENV} -c root -l -b -q MLTraining.C
-
+    popd
   fi
 
 }
@@ -463,6 +463,14 @@ while [ $# -gt 0 ] ; do
     export ML_TRAINING_FILE="`realpath $2`";
     shift 2
     ;;
+    --MLanalysis)
+    export ML_ANALYSIS="1";
+    shift 1
+    ;;
+    --rep)
+    MAX_REP="$2";
+    shift 1
+    ;;
     --convert)
     CONVERT="1";
     shift 1
@@ -496,7 +504,7 @@ if ! [[ -z "$LOADEDMODULES" ]]
  fi
 
 
-if [ -z ${GENERATEMCH+x} ] && [ -z ${GENERATEMFT+x} ] && [ -z ${MATCHING+x} ] && [ -z ${CHECKS+x} ] && [ -z ${ML_EXPORTTRAINDATA+x} ] && [ -z ${TRAIN_ML+x} ]
+if [ -z ${GENERATEMCH+x} ] && [ -z ${GENERATEMFT+x} ] && [ -z ${MATCHING+x} ] && [ -z ${CHECKS+x} ] && [ -z ${ML_EXPORTTRAINDATA+x} ] && [ -z ${TRAIN_ML+x} ] && [ -z ${ML_ANALYSIS+x} ]
 then
   echo "Missing use mode!"
   echo " "
@@ -511,7 +519,7 @@ GENERATOR=${GENERATOR:-"gun0_100GeV"}
 CUSTOM_SHM="--shm-segment-size 5000000000"
 
 export MCHGENERATOR=${GENERATOR}
-export ALIROOT_OCDB_ROOT=${ALIROOT_OCDB_ROOT:-$HOME/alice/OCDB}
+export ALIROOT_OCDB_ROOT=~/alice/OCDB
 
 ALIROOTENV=${ALIROOTENV:-"AliRoot/latest-master-next-root6"}
 O2ENV=${O2ENV:-"O2/latest-dev-o2"}
@@ -532,6 +540,20 @@ fi
 
 if ! [ -z ${GENERATEMFT+x} ]; then
   generateMFTTracks ;
+fi
+
+if ! [ -z ${ML_ANALYSIS+x} ]; then 
+  export MATCHING_FCN="trainedML_";
+  MAX_REP=5
+  export rep=0
+  while [ $rep -lt 5 ]; do 
+#    export ML_WEIGHTFILE="`realpath $ML_WEIGHTFILE`/Trained_ML_DNN4.0_ts0_stdrnd_MLTraining_100_MCHTracks.weights.xml";
+    trainML;
+    echo " Training number $rep done"; 
+    runMatching;
+    export rep=$(( rep+1 ))
+    export NOT_FIRST_REP="1"
+  done
 fi
 
 if ! [ -z ${MATCHING+x} ]; then runMatching ; fi

@@ -183,7 +183,7 @@ void MUONMatcher::loadMFTTracksOut()
   auto nInvalidMFTLabels = 0;
   for (auto& track : mMFTTracks) {
     auto MFTlabel = mftTrackLabels.getLabels(mftTrackID);
-    if (MFTlabel[0].isValid()) {
+	if (MFTlabel[0].isValid()) {    
       auto event = MFTlabel[0].getEventID();
       track.setParameters(track.getOutParam().getParameters());
       track.setCovariances(track.getOutParam().getCovariances());
@@ -449,9 +449,22 @@ void MUONMatcher::runEventMatching()
               << std::endl;
   }
   finalize();
-  if (mTMVAReader)
+  if (mTMVAReader) {
+    if (gSystem->Getenv("ML_ANALYSIS")) {
+      AnalysisML();
+      std::cout<< " analys ML yup " << std::endl;
+//      exit(1);
+    }
     EvaluateML();
+  }
 }
+
+void MUONMatcher::interfaceML(const GlobalMuonTrack&, const MFTTrack&){
+
+
+
+}
+  
 
 //_________________________________________________________________________________________________
 bool MUONMatcher::printMatchingPlaneView(int event, int MCHTrackID)
@@ -1892,6 +1905,81 @@ void MUONMatcher::exportTrainingDataRoot(int nMCHTracks)
   matcherConfig.close();
 }
 
+//_________________________________________________________________________________________________
+void MUONMatcher::AnalysisML()
+{
+  std::cout << " Checking ML performance... " << std::endl;
+//    if(gSystem->Getenv("NOT_FIRST_REP"))
+  TFile* outputfile = new TFile("ML_Analysis.root", "UPDATE");
+
+/*  int npoints = 25;
+  float cutsteps = 1. / (float)npoints;
+  TGraph* gr1 = new TGraph(npoints);
+  gr1->SetMarkerColor(kGreen + 2);
+  gr1->SetMarkerStyle(20);
+  TGraph* gr2 = new TGraph(npoints);
+  gr2->SetMarkerColor(2);
+  gr2->SetMarkerStyle(20);
+  TGraph* gr3 = new TGraph(npoints);
+  gr3->SetMarkerColor(4);
+  gr3->SetMarkerStyle(20);
+  TGraph* gr4 = new TGraph(npoints);
+  gr4->SetMarkerColor(9);
+  gr4->SetMarkerStyle(20);
+*/
+//EvaluateML();
+    auto rep = gSystem->Getenv("rep");
+std::cout<< " *********** REP ********* " << rep << std::endl;
+
+  auto GTrackID = 0;
+  int correct_match, fake, reject, nMCHtracks = mMatchingHelper.nMCHTracks;
+  for (float cut = 0.1; cut <= 1.; cut += 0.4) {
+    correct_match = fake = reject = 0;
+    for (int event = 0; event < mNEvents; event++) {
+      GTrackID = 0;
+      for (auto& gTrack : mSortedGlobalMuonTracks[event]) {
+        auto GMTracklabel = mSortedGlobalTrackLabels[event].getLabels(GTrackID);
+        auto bestMFTTrackMatchID = gTrack.getBestMFTTrackMatchID();
+        if (bestMFTTrackMatchID >= 0 && std::abs(gTrack.getMatchingChi2()) > cut)
+          GMTracklabel[0].isCorrect() ? (correct_match++) : (fake++);
+        else
+          reject++;
+        GTrackID++;
+      } //loop over global tracks
+    }
+
+    auto correct_ratio = (float)correct_match/(nMCHtracks - reject);
+
+//    std::cout<< " *********** DEBUG REP ********* " << rep << std::endl;
+	TString h0_name("Hist_ratios_cut:"+std::to_string(cut));
+
+std::cout<< " *********** DEBUG REP ********* " << rep << std::endl;
+    if(gSystem->Getenv("NOT_FIRST_REP")) {	
+    std::cout<< " *********** DEBUG REP != 0 *********"  << std::endl;
+		TH1D *h0 = ((TH1D*) outputfile->Get(h0_name));
+		h0->Fill(correct_ratio);
+// h0->Write();
+	} else {
+    std::cout<< " *********** DEBUG REP = 0 *********"  << std::endl;
+		TH1D *h0 = new TH1D(h0_name,h0_name, 50, -0.1, 1.15); 
+		h0->SetXTitle("Correct Match Ratio");
+		h0->Fill(correct_ratio); 
+// h0->Write();
+	}
+/*    gr1->SetPoint(gr1->GetN(), cut, (float)correct_match / (nMCHtracks - reject));
+    gr2->SetPoint(gr2->GetN(), cut, (float)fake / (nMCHtracks - reject));
+    gr3->SetPoint(gr3->GetN(), cut, (float)reject / nMCHtracks);
+    gr4->SetPoint(gr4->GetN(), (float)reject / nMCHtracks, (float)correct_match / (nMCHtracks - reject));
+*/
+
+  }
+ 
+  // --- Write histograms and graphics
+  outputfile->Write("",TObject::kOverwrite);
+  outputfile->Close();
+std::cout << "--- Created root file: \"" << outputfile->GetName() 
+             << "\" containing correct ratio analysis" << std::endl;
+}
 //_________________________________________________________________________________________________
 Float_t EtaToTheta(Float_t arg)
 {

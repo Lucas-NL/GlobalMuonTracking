@@ -32,6 +32,9 @@
 #include "TTree.h"
 #include "TSystem.h"
 #include "TROOT.h"
+#include "TChain.h"
+#include "TString.h"
+#include "TObjString.h"
 #endif
 
 #include "MCHTracking/TrackParam.h"
@@ -83,8 +86,8 @@ class MUONMatcher
     mMatchingPlaneZ = z;
 
     double SAbsZBeg =  -90.; ///< Position of the begining of the absorber (cm)
-    double SAbsZEnd = -505.; ///< Position of the end of the absorber (cm)
-
+    double SAbsZEnd = -505.; ///< Position of the end of the absorber (cm)   
+    
     // Check the matching plane position with respect to the absorber (spectro
     // z<0)
     if (mMatchingPlaneZ < SAbsZBeg) {
@@ -141,6 +144,7 @@ class MUONMatcher
                         const MFTTrack& mftTrack);
 
   void EvaluateML();
+  void AnalysisML();
 
   void setMatchingFunction(double (MUONMatcher::*func)(const GlobalMuonTrack&,
                                                        const MFTTrack&))
@@ -277,6 +281,10 @@ class MUONMatcher
               << "] = " << param << std::endl;
   };
 
+
+  // ML interface
+  void interfaceML(const GlobalMuonTrack&, const MFTTrack&);
+  
  private:
   // Private IO methods
   void loadMFTClusters();

@@ -188,7 +188,7 @@ int runMatching()
   matcher.saveGlobalMuonTracks();
 
   // Export Matching Plane views in png
-  matcher.exportNMatchingPlaneViews(10);
+//  matcher.exportNMatchingPlaneViews(10);
 
   return 0;
 }
