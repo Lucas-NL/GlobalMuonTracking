@@ -490,8 +490,8 @@ void MUONMatcher::MLClassification(std::string input_name, std::string trainingf
     background = (TTree*)input_bkg->Get("matchTree");
 
   } else {
-    signalTree = (TTree*)input->Get("Signal_tree");
-    background = (TTree*)input->Get("Bkg_tree");
+    signalTree = (TTree*)input->Get("signal_tree");
+    background = (TTree*)input->Get("bkg_tree");
   }
 
   // Let's initialize the factory object (analysis class)...:
@@ -688,8 +688,8 @@ void MUONMatcher::MLRegression(std::string input_name, std::string trainingfile,
   std::cout << "--- TMVARegression           : Using training input file: " << input->GetName() << std::endl;
 
   // Register the regression tree
-  TTree* regTree = (TTree*)input->Get("matchTree");
-
+  TTree* sigTree = (TTree*)input->Get("signal_tree");
+  TTree* bkgTree = (TTree*)input->Get("bkg_tree");
   // Let's initialize the factory object (analysis class)...:
   // The first argument is the base of the name of all the
   // weightfiles in the directory weight/
@@ -741,7 +741,7 @@ void MUONMatcher::MLRegression(std::string input_name, std::string trainingfile,
 
   if (gSystem->Getenv("ML_TEST")) {
 
-    if (gSystem->Getenv("ML_TESTING_FILE")) {
+    if (gSystem->Getenv("ML_TESTING_FILE")) { // Testing ML with separated testing files
       std::string testingfile = gSystem->Getenv("ML_TESTING_FILE");
       TFile* test_input(0);
       if (!gSystem->AccessPathName(testingfile.c_str())) {
@@ -756,21 +756,21 @@ void MUONMatcher::MLRegression(std::string input_name, std::string trainingfile,
       // Register the regression test tree (for now, must use same format as
       // training tree)
       TTree* testTree = (TTree*)test_input->Get("matchTree");
-      dataloader->AddRegressionTree(regTree, regWeight, Types::kTraining);
+//      dataloader->AddRegressionTree(regTree, regWeight, Types::kTraining);
       dataloader->AddRegressionTree(testTree, regWeight, Types::kTesting);
 
       dataloader->PrepareTrainingAndTestTree(
         mycut, "SplitMode=Random:NormMode=NumEvents:!V");
-    } else {
+    } else {     // Testing ML with same file used for training
       float ntest = atof((gSystem->Getenv("ML_NTEST")));
-      int nentries = regTree->GetEntries();
+      int nentries = 0;//regTree->GetEntries();
       int train_samples;
       if (ntest < 1) {
         train_samples = (1 - ntest) * nentries;
       } else {
         train_samples = nentries - ntest;
       }
-      dataloader->AddRegressionTree(regTree, regWeight);
+//      dataloader->AddRegressionTree(regTree, regWeight);
       dataloader->PrepareTrainingAndTestTree(
         mycut,
         "nTrain_Regression=" + std::to_string(train_samples) +
@@ -781,7 +781,8 @@ void MUONMatcher::MLRegression(std::string input_name, std::string trainingfile,
     }
   } else { // i.e. just training the ML, wo testing and evaluation
     // You can now add the tree to the dataloader:
-    dataloader->AddRegressionTree(regTree, regWeight, Types::kTraining);
+    dataloader->AddRegressionTree(sigTree, regWeight, Types::kTraining);  //TODO try to inscrease signal weight
+    dataloader->AddRegressionTree(bkgTree, regWeight, Types::kTraining);
     dataloader->PrepareTrainingAndTestTree(
       mycut, "SplitMode=Random:NormMode=NumEvents:!V");
   }
@@ -2159,12 +2160,15 @@ void MUONMatcher::exportTrainingDataRoot(int nMCHTracks)
 
   Int_t Truth, track_IDs, nCorrectPairs = 0, nFakesPairs = 0;
   Int_t pairID = 0;
-  TTree* matchTree = new TTree("matchTree", "MatchTree");
+  TTree* signalTree = new TTree("signal_tree", "signal_tree");
+  TTree* bkgTree = new TTree("bkg_tree", "bkg_tree");
   for (std::size_t nFeature = 0; nFeature < mNInputFeatures; nFeature++) {
-    matchTree->Branch(mMLInputFeaturesName[nFeature].c_str(), &mMLInputFeatures[nFeature], Form("%s/F", mMLInputFeaturesName[nFeature].c_str()));
+    signalTree->Branch(mMLInputFeaturesName[nFeature].c_str(), &mMLInputFeatures[nFeature], Form("%s/F", mMLInputFeaturesName[nFeature].c_str()));
+    bkgTree->Branch(mMLInputFeaturesName[nFeature].c_str(), &mMLInputFeatures[nFeature], Form("%s/F", mMLInputFeaturesName[nFeature].c_str()));
   }
 
-  matchTree->Branch("Truth", &Truth, "Truth/I");
+  signalTree->Branch("Truth", &Truth, "Truth/I");
+  bkgTree->Branch("Truth", &Truth, "Truth/I");
 
   auto event = 0;
   while (nMCHTracks > 0 or event < mNEvents) {
@@ -2190,9 +2194,14 @@ void MUONMatcher::exportTrainingDataRoot(int nMCHTracks)
 
             setMLFeatures(mchTrack, mftTrack);
 
-            Truth ? nCorrectPairs++ : nFakesPairs++;
+            if (!Truth) {
+              bkgTree->Fill();
+              nFakesPairs++;
+            } else {
+              signalTree->Fill();
+              nCorrectPairs++;
+            }
             pairID++;
-            matchTree->Fill();
           }
           mftTrackID++;
         } // loop mfttracks
